@@ -1,0 +1,35 @@
+# Compiled Python files
+__pycache__/
+*.py[cod]
+
+# Distribution / packaging
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg-info/
+dist/
+build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Pytest
+.cache
+__pycache__
+
+# Data files
+data/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Other
+*.log
