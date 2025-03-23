@@ -126,47 +126,35 @@ def format_table_currency(df, columns):
     
     return df_styled
 
-def create_metric_card(title, value, delta=None, prefix="", suffix="", is_currency=False, is_percentage=False):
+def create_metric_card(label, value, delta=None, is_currency=False, is_percentage=False, delta_sign=True, suffix=""):
     """
-    Cria um card de métrica
+    Creates a metric card with formatted values
     
     Args:
-        title (str): Título da métrica
-        value (float): Valor da métrica
-        delta (float, optional): Variação da métrica
-        prefix (str, optional): Prefixo do valor
-        suffix (str, optional): Sufixo do valor
-        is_currency (bool, optional): Se o valor é moeda
-        is_percentage (bool, optional): Se o valor é percentual
+        label (str): Title of the metric card
+        value (float): Main value to display
+        delta (float, optional): Delta/change value to display below main value
+        is_currency (bool): Whether to format as currency
+        is_percentage (bool): Whether to format delta as percentage
+        delta_sign (bool): Whether to show +/- signs for delta
+        suffix (str): Optional suffix to append to the value (e.g. "km", "%")
     """
     if is_currency:
         formatted_value = format_currency(value)
-    elif is_percentage:
-        formatted_value = format_percentage(value)
     else:
-        formatted_value = f"{prefix}{value}{suffix}"
-    
-    delta_html = ""
+        formatted_value = f"{value:,.2f}{suffix}"
+        
     if delta is not None:
-        delta_class = "positive" if delta >= 0 else "negative"
-        delta_sign = "+" if delta > 0 else ""
-        
         if is_percentage:
-            delta_text = f"{delta_sign}{delta:.2f}%".replace('.', ',')
-        elif is_currency:
-            delta_text = f"{delta_sign}{format_currency(delta)}"
+            delta_value = abs(delta) if not delta_sign else delta
+            delta_text = f"{delta_value:.1f}%"
         else:
-            delta_text = f"{delta_sign}{delta}{suffix}"
+            delta_value = abs(delta) if not delta_sign else delta
+            delta_text = format_currency(delta_value) if is_currency else f"{delta_value:.2f}{suffix}"
+    else:
+        delta_text = None
         
-        delta_html = f'<div class="metric-delta {delta_class}">{delta_text}</div>'
-    
-    st.markdown(f"""
-    <div class="metric-card">
-        <div class="metric-title">{title}</div>
-        <div class="metric-value">{formatted_value}</div>
-        {delta_html}
-    </div>
-    """, unsafe_allow_html=True)
+    st.metric(label, formatted_value, delta_text)
 
 def plot_bar_chart(df, x, y, title="", color=None, color_discrete_map=None, text_auto=True, **kwargs):
     """
@@ -286,4 +274,4 @@ def plot_line_chart(df, x, y, title="", color=None, color_discrete_map=None, mar
         margin=dict(l=50, r=50, t=80, b=50),
     )
     
-    return fig 
+    return fig

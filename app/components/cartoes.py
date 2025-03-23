@@ -16,6 +16,35 @@ from utils.styling import (
 )
 from config import COLORS, MONTHS
 
+# Add these month mappings at the top of the file after imports
+MONTH_MAP = {
+    'January': 'Janeiro',
+    'February': 'Fevereiro',
+    'March': 'Março',
+    'April': 'Abril',
+    'May': 'Maio',
+    'June': 'Junho',
+    'July': 'Julho',
+    'August': 'Agosto',
+    'September': 'Setembro',
+    'October': 'Outubro',
+    'November': 'Novembro',
+    'December': 'Dezembro'
+}
+
+def validate_cartoes_data(df):
+    """Validates corporate card data requirements"""
+    required_columns = ['Usuário', 'Conta', 'Valor', 'Data']
+    missing = [col for col in required_columns if col not in df.columns]
+    
+    if missing:
+        raise ValueError(f"Colunas obrigatórias ausentes: {', '.join(missing)}")
+    
+    if df.empty:
+        raise ValueError("Dataset está vazio")
+        
+    return True
+
 def cartoes_view():
     """
     Componente de visualização de Cartões Corporativos
@@ -30,6 +59,10 @@ def cartoes_view():
         # Carrega e processa os dados
         df = load_data(selected_year)
         df_processed = preprocess_financial_data(df)
+        
+        # Add validation
+        if not validate_cartoes_data(df_processed):
+            return
         
         # Verifica se há dados de cartões (coluna Conta)
         if 'Usuário' not in df_processed.columns or 'Conta' not in df_processed.columns:
@@ -53,21 +86,21 @@ def cartoes_view():
             return
         
         # Obtém lista de funcionários
-        Usuários = df_cartoes['Usuário'].unique().tolist()
+        usuarios = df_cartoes['Usuário'].unique().tolist()
         
         # Layout em colunas para filtros
         col1, col2 = st.columns(2)
         
         with col1:
             # Filtro de funcionário
-            if len(Usuários) > 1:
-                selected_Usuário = st.multiselect(
+            if len(usuarios) > 1:
+                selected_usuario = st.multiselect(
                     "Filtrar por funcionário:",
-                    options=["Todos"] + Usuários,
+                    options=["Todos"] + usuarios,
                     default=["Todos"]
                 )
             else:
-                selected_Usuário = Usuários
+                selected_usuario = usuarios
         
         with col2:
             # Verifica qual coluna usar para meses (Mes ou Mês Ano)
@@ -78,7 +111,8 @@ def cartoes_view():
                 if mes_column == 'Mês Ano':
                     # Supondo que 'Mês Ano' seja algo como "Janeiro 2024"
                     df_cartoes['Mes'] = df_cartoes[mes_column].apply(
-                        lambda x: MONTHS.index(x.split()[0]) + 1 if isinstance(x, str) and ' ' in x else 0
+                        lambda x: MONTHS.index(MONTH_MAP.get(x.split()[0], x.split()[0])) + 1 
+                        if isinstance(x, str) and ' ' in x else 0
                     )
                 
                 months_in_data = sorted(df_cartoes['Mes'].unique().tolist())
@@ -94,12 +128,15 @@ def cartoes_view():
                 selected_month = ["Todos"]
         
         # Aplicar filtros
-        if "Todos" not in selected_Usuário:
-            df_cartoes = df_cartoes[df_cartoes['Usuário'].isin(selected_Usuário)]
+        if "Todos" not in selected_usuario:
+            df_cartoes = df_cartoes[df_cartoes['Usuário'].isin(selected_usuario)]
         
         if "Todos" not in selected_month and 'Mes' in df_cartoes.columns:
             # Converte nomes dos meses para números
-            month_numbers = [MONTHS.index(m) + 1 for m in selected_month]
+            month_numbers = [
+                MONTHS.index(MONTH_MAP.get(m, m)) + 1 
+                for m in selected_month if m != "Todos"
+            ]
             df_cartoes = df_cartoes[df_cartoes['Mes'].isin(month_numbers)]
         
         # Métricas
@@ -192,23 +229,43 @@ def cartoes_view():
         st.subheader("Evolução de Gastos Mensais")
         
         if 'Mes' in df_cartoes.columns:
-            df_mensal = df_cartoes.groupby('Mes')['Valor'].sum().reset_index()
+            # Add transaction count to monthly analysis
+            df_mensal = df_cartoes.groupby('Mes').agg({
+                'Valor': 'sum',
+                'Usuário': 'count'  # Counts transactions
+            }).reset_index()
             
-            # Adiciona nomes dos meses
-            df_mensal['Mes_Nome'] = df_mensal['Mes'].apply(lambda x: MONTHS[x-1] if 1 <= x <= 12 else f'Mês {x}')
-            
-            # Ordena por mês
-            df_mensal = df_mensal.sort_values('Mes')
-            
-            fig = plot_line_chart(
-                df_mensal,
-                x="Mes_Nome",
-                y="Valor",
-                title=f"Evolução Mensal de Gastos com Cartões - {selected_year}",
-                markers=True,
-                color_discrete_sequence=[COLORS["primary"]]
+            df_mensal = df_mensal.rename(columns={'Usuário': 'Transações'})
+            df_mensal['Mes_Nome'] = df_mensal['Mes'].apply(
+                lambda x: MONTHS[x-1] if 1 <= x <= 12 else f'Mês {x}'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            
+            # Create two charts in columns
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Existing spending chart
+                fig_valor = plot_line_chart(
+                    df_mensal,
+                    x="Mes_Nome",
+                    y="Valor",
+                    title=f"Gastos Mensais - {selected_year}",
+                    markers=True,
+                    color_discrete_sequence=[COLORS["primary"]]
+                )
+                st.plotly_chart(fig_valor, use_container_width=True)
+                
+            with col2:
+                # New transactions count chart
+                fig_trans = plot_line_chart(
+                    df_mensal,
+                    x="Mes_Nome",
+                    y="Transações",
+                    title=f"Quantidade de Transações - {selected_year}",
+                    markers=True,
+                    color_discrete_sequence=[COLORS.get("secondary", "#ff7f0e")]  # Uses fallback color if not found
+                )
+                st.plotly_chart(fig_trans, use_container_width=True)
         
         # Tabela detalhada de transações
         st.subheader("Transações Detalhadas")
@@ -230,8 +287,19 @@ def cartoes_view():
             use_container_width=True
         )
         
+        # Add export button
+        if not df_table.empty:
+            csv = df_table.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Exportar Transações",
+                csv,
+                f"transacoes_cartao_{selected_year}.csv",
+                "text/csv",
+                key='download-csv'
+            )
+        
         # Gráfico de análise comparativa
-        if len(Usuários) > 1 and 'Categoria' in df_cartoes.columns:
+        if len(usuarios) > 1 and 'Categoria' in df_cartoes.columns:
             st.subheader("Análise Comparativa por Funcionário")
             
             # Top 3 categorias
@@ -289,4 +357,4 @@ def cartoes_view():
 
 if __name__ == "__main__":
     # Teste do componente
-    cartoes_view() 
+    cartoes_view()

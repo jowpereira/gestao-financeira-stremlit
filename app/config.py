@@ -24,21 +24,23 @@ DEFAULT_YEAR = int(os.getenv("DEFAULT_YEAR", "2024"))
 
 # Cores para visualizações
 COLORS = {
-    "primary": "#3498db",
-    "secondary": "#2ecc71",
-    "danger": "#e74c3c",
-    "warning": "#f39c12",
-    "info": "#1abc9c",
-    "dark": "#34495e",
-    "light": "#ecf0f1",
-    "fixed": "#9b59b6",
-    "variable": "#3498db",
-    "non_operational": "#e74c3c",
-    "balance": "#2ecc71",
+    "primary": "#7FB3D5",     # azul suave
+    "secondary": "#F5B041",   # laranja pastel
+    "fixed": "#82E0AA",      # verde menta
+    "variable": "#F1948A",   # rosa salmão
+    "non_operational": "#C39BD3",  # lilás suave
+    "warning": "#FAD7A0",    # pêssego
+    "info": "#85C1E9"        # azul céu
 }
 
 # Tipos de despesas
-EXPENSE_TYPES = ["Fixo", "Variável", "Não Operacional"]
+EXPENSE_TYPES = [
+    "Fixo",
+    "Investimento",
+    "Saída Não Operacional",
+    "Variável",
+    "TH Parfum"
+]
 
 # Meses para visualizações
 MONTHS = [
@@ -52,4 +54,4 @@ print(f"Diretório de dados: {DATA_PATH}")
 print(f"Arquivos:")
 print(f"2023: {DATA_2023} (existe: {Path(DATA_2023).exists()})")
 print(f"2024: {DATA_2024} (existe: {Path(DATA_2024).exists()})")
-print(f"2025: {DATA_2025} (existe: {Path(DATA_2025).exists()})") 
+print(f"2025: {DATA_2025} (existe: {Path(DATA_2025).exists()})")

@@ -16,6 +16,60 @@ from utils.styling import (
 )
 from config import COLORS, MONTHS
 
+def calculate_vehicle_metrics(df):
+    """Calculate vehicle metrics with validation"""
+    metrics = {}
+    
+    # Total expenses
+    metrics['total_gasto'] = df['Valor'].sum()
+    
+    # Average expense per vehicle
+    metrics['gasto_medio'] = df.groupby('Veículos')['Valor'].sum().mean()
+    
+    # Total mileage (max - min per vehicle)
+    if 'KM' in df.columns:
+        km_por_veiculo = df.groupby('Veículos')['KM'].agg(['min', 'max'])
+        km_por_veiculo['km_rodados'] = km_por_veiculo['max'] - km_por_veiculo['min']
+        metrics['km_total'] = km_por_veiculo['km_rodados'].sum()
+        
+        # Cost per km
+        metrics['custo_por_km'] = (
+            metrics['total_gasto'] / metrics['km_total'] 
+            if metrics['km_total'] > 0 else 0
+        )
+    
+    return metrics
+
+def plot_monthly_analysis(df):
+    """Plot monthly trends"""
+    if 'Data' not in df.columns:
+        return
+        
+    df['Mês'] = pd.to_datetime(df['Data']).dt.to_period('M')
+    df_mensal = df.groupby('Mês').agg({
+        'Valor': 'sum',
+        'KM': lambda x: x.max() - x.min() if 'KM' in df.columns else 0,
+        'Litros': 'sum'
+    }).reset_index()
+    
+    df_mensal['Mês'] = df_mensal['Mês'].astype(str)
+    df_mensal['Custo_por_KM'] = np.where(
+        df_mensal['KM'] > 0,
+        df_mensal['Valor'] / df_mensal['KM'],
+        0
+    )
+    
+    # Plot monthly trends
+    st.subheader("Análise Mensal")
+    fig = plot_line_chart(
+        df_mensal,
+        x="Mês",
+        y="Valor",
+        title="Gastos Mensais",
+        color_discrete_sequence=[COLORS["primary"]]
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 def veiculos_view():
     """
     Componente de visualização de Análise de Veículos
@@ -48,38 +102,31 @@ def veiculos_view():
         # Obtém lista de veículos
         veiculos = df_veiculos['Veículos'].unique().tolist()
         
-        # Filtro de veículo
+        # Improved vehicle filter
         if len(veiculos) > 1:
-            selected_veiculo = st.multiselect(
-                "Selecione o veículo:",
-                options=["Todos"] + veiculos,
-                default=["Todos"]
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                selected_veiculo = st.multiselect(
+                    "Selecione o veículo:",
+                    options=veiculos,  # Removed "Todos" from options
+                    default=[],
+                    key="vehicle_filter"
+                )
+            with col2:
+                if st.button("Selecionar Todos"):
+                    st.session_state.vehicle_filter = veiculos
+                    
+            # Apply filter
+            df_veiculos = (
+                df_veiculos if not selected_veiculo 
+                else df_veiculos[df_veiculos['Veículos'].isin(selected_veiculo)]
             )
-            
-            # Aplica filtro
-            if "Todos" not in selected_veiculo:
-                df_veiculos = df_veiculos[df_veiculos['Veículos'].isin(selected_veiculo)]
         
         # Verifica se há dados de abastecimento
         tem_abastecimento = all(col in df_veiculos.columns for col in ['KM', 'Litros'])
         
         # Cria métricas gerais
-        # Total gasto com veículos
-        total_gasto = df_veiculos['Valor'].sum()
-        
-        # Gasto médio por veículo
-        gasto_medio = df_veiculos.groupby('Veículos')['Valor'].sum().mean()
-        
-        # Quilometragem total (se existir)
-        km_total = 0
-        if 'KM' in df_veiculos.columns:
-            # Pega a maior quilometragem para cada veículo
-            km_total = df_veiculos.groupby('Veículos')['KM'].max().sum()
-        
-        # Custo por quilômetro
-        custo_por_km = 0
-        if km_total > 0:
-            custo_por_km = total_gasto / km_total
+        metrics = calculate_vehicle_metrics(df_veiculos)
         
         # Layout em colunas para métricas
         st.subheader("Métricas Gerais")
@@ -89,14 +136,14 @@ def veiculos_view():
         with col1:
             create_metric_card(
                 "Total Gasto", 
-                total_gasto,
+                metrics['total_gasto'],
                 is_currency=True
             )
         
         with col2:
             create_metric_card(
                 "Gasto Médio por Veículo", 
-                gasto_medio,
+                metrics['gasto_medio'],
                 is_currency=True
             )
         
@@ -104,18 +151,18 @@ def veiculos_view():
             if 'KM' in df_veiculos.columns:
                 create_metric_card(
                     "Quilometragem Total", 
-                    km_total,
-                    suffix=" km",
-                    is_currency=False
+                    metrics['km_total'],
+                    is_currency=False,
+                    suffix=" km"  # Space before km for better formatting
                 )
             else:
                 st.info("Dados de quilometragem não disponíveis")
         
         with col4:
-            if custo_por_km > 0:
+            if metrics['custo_por_km'] > 0:
                 create_metric_card(
                     "Custo por KM", 
-                    custo_por_km,
+                    metrics['custo_por_km'],
                     is_currency=True
                 )
             else:
@@ -147,16 +194,24 @@ def veiculos_view():
             st.subheader("Gastos por Categoria")
             
             if 'Categoria' in df_veiculos.columns:
-                df_categorias = df_veiculos.groupby('Categoria')['Valor'].sum().reset_index()
-                df_categorias = df_categorias.sort_values('Valor', ascending=False)
+                # Filter out "Medição" entries and standardize category names
+                df_categorias = df_veiculos[df_veiculos['Conta'] != 'Medição'].copy()
+                df_categorias['Categoria'] = df_categorias['Categoria'].str.strip().str.title()
                 
-                fig = plot_pie_chart(
-                    df_categorias,
-                    values="Valor",
-                    names="Categoria",
-                    title="Distribuição de Gastos por Categoria"
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                if df_categorias.empty:
+                    st.warning("Sem dados de categoria após filtrar medições.")
+                else:
+                    # Group and sort by value
+                    df_categorias = df_categorias.groupby('Categoria')['Valor'].sum().reset_index()
+                    df_categorias = df_categorias.sort_values('Valor', ascending=False)
+                    
+                    fig = plot_pie_chart(
+                        df_categorias,
+                        values="Valor",
+                        names="Categoria",
+                        title="Distribuição de Gastos por Categoria"
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("Dados de categoria não disponíveis.")
         
@@ -227,6 +282,9 @@ def veiculos_view():
                 use_container_width=True
             )
         
+        # Análise Mensal
+        plot_monthly_analysis(df_veiculos)
+        
     except Exception as e:
         st.error(f"Erro ao carregar os dados: {e}")
         st.info(f"Verifique se os arquivos CSV para o ano {selected_year} estão disponíveis e formatados corretamente.")
@@ -234,4 +292,4 @@ def veiculos_view():
 
 if __name__ == "__main__":
     # Teste do componente
-    veiculos_view() 
+    veiculos_view()

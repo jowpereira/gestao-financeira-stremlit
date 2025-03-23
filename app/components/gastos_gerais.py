@@ -52,7 +52,8 @@ def gastos_gerais_view():
                 metrics.get('total_fixo', 0),
                 delta=metrics.get('percentual_fixo', 0),
                 is_currency=True,
-                is_percentage=False
+                is_percentage=True,  # Mudou para True
+                delta_sign=False  # Add this parameter
             )
         
         with col3:
@@ -61,16 +62,18 @@ def gastos_gerais_view():
                 metrics.get('total_variável', 0),
                 delta=metrics.get('percentual_variável', 0),
                 is_currency=True,
-                is_percentage=False
+                is_percentage=True,  # Mudou para True
+                delta_sign=False  # Add this parameter
             )
         
         with col4:
             create_metric_card(
                 "Despesas Não Operacionais", 
-                metrics.get('total_não operacional', 0),
-                delta=metrics.get('percentual_não operacional', 0),
+                metrics.get('total_saída_não_operacional', 0),  # Updated key name
+                delta=metrics.get('percentual_saída_não_operacional', 0),  # Updated key name
                 is_currency=True,
-                is_percentage=False
+                is_percentage=True,  # Mudou para True
+                delta_sign=False  # Add this parameter
             )
         
         st.markdown("---")
@@ -86,7 +89,7 @@ def gastos_gerais_view():
             expense_by_type = []
             
             for tipo in EXPENSE_TYPES:
-                tipo_lower = tipo.lower()
+                tipo_lower = tipo.lower().replace(" ", "_")  # Handle spaces in type names
                 expense_by_type.append({
                     "Tipo": tipo,
                     "Valor": metrics.get(f'total_{tipo_lower}', 0)
@@ -103,9 +106,9 @@ def gastos_gerais_view():
                     title="Despesas por Tipo",
                     color="Tipo",
                     color_discrete_map={
-                        "Fixo": COLORS["fixed"],
-                        "Variável": COLORS["variable"],
-                        "Não Operacional": COLORS["non_operational"]
+                        "Fixo": COLORS.get("fixed", "#2ca02c"),
+                        "Variável": COLORS.get("variable", "#d62728"),
+                        "Saída Não Operacional": COLORS.get("non_operational", "#9467bd")  # Updated name
                     }
                 )
                 st.plotly_chart(fig, use_container_width=True)
@@ -197,4 +200,4 @@ def gastos_gerais_view():
 
 if __name__ == "__main__":
     # Teste do componente
-    gastos_gerais_view() 
+    gastos_gerais_view()
